@@ -1,10 +1,12 @@
 DMXIS {
 
-	classvar <>vst, <pattern;
+	classvar <cues, <>vst;
 
 	*initClass {
 
 		StartUp.add{
+
+			cues = IdentityDictionary();
 
 			SynthDef(\dmxis,{
 				Env.asr().kr(2,\gate.kr(1));
@@ -24,48 +26,73 @@ DMXIS {
 		^vst;
 	}
 
+	*free {
+		this.vst.synth.free;
+	}
+
 	*setPreset { |preset|
-		var pSet = preset/100;
+		var pSet = preset / 100;
 		vst.set(\Preset,pSet);
 		"Preset: %".format(preset).postln;
 		^preset
 	}
 
-	*loadPat { |uniqueKey, pathToMIDI|
+	*loadFromMIDI { |key, path|
+		var pathToMIDI = path.asString;
 
-		if( pathToMIDI.asString.extension == "mid",{
-			var file = SimpleMIDIFile.read(pathToMIDI.asString)
+		if(pathToMIDI.extension == "mid",{
+			var file = SimpleMIDIFile.read(pathToMIDI)
 			.timeMode_(\seconds)
 			.midiEvents
-			.reject({ |event| event[2] == \noteOff});
+			.reject({ |event| event[2] == \noteOff });
 
 			var times = file.collect({ |event| event[1] }).differentiate.drop(1);
 			var presets = file.collect({ |event| event[4] });
 
-			pattern = Pdef(uniqueKey.asSymbol,
+			cues.put(key.asSymbol,
+				(
+					times: times,
+					presets: presets
+				)
+			);
+
+		},{
+			"bad path, must be a .mid file!".throw;
+		});
+
+		^cues.at(key)
+	}
+
+	*makePat { |key, path = nil|
+		var uniqueKey = key.asSymbol;
+
+		if(path.isNil,{
+			if(cues[uniqueKey].isNil,{
+				"no file loaded".throw;
+			});
+		},{
+			this.loadFromMIDI(key, path);
+		});
+
+		if(vst.isNil.not,{
+			var times = cues[uniqueKey]['times'];
+			var presets = cues[uniqueKey]['presets'];
+
+			var pattern = Pdef(uniqueKey,
 				Pbind(
 					\type,\vst_set,
 					\vst,vst,
 					\params,[ \Preset ],
-					\dur,Pseq( times ,1),
-					\Preset,Pseq( presets ,1),
+					\dur,Pseq( times, 1 ),
+					\Preset,Pseq( presets, 1 ),
 				)
 			);
+
+			cues[uniqueKey].put('pattern',pattern)
 		},{
-			"bad path, must be a .mid file!".warn;
+			"DMXIS-VST not running".throw;
 		});
 
-		^pattern
+		^cues[uniqueKey]['pattern']
 	}
-
-	*play { |uniqueKey, pathToMIDI|
-
-		this.loadPat(uniqueKey, pathToMIDI).play; // does this need to return something special???
-	}
-
-
 }
-
-// everything needs to be class methods - not going to run more than one instance of a DMX VST, right? Right?!
-
-.clickKeys
