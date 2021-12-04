@@ -43,11 +43,26 @@ DMXIS {
 		if(pathToMIDI.extension == "mid",{
 			var file = SimpleMIDIFile.read(pathToMIDI)
 			.timeMode_(\seconds)
-			.midiEvents
-			.reject({ |event| event[2] == \noteOff });
+			.midiEvents;
 
-			var times = file.collect({ |event| event[1] }).differentiate.drop(1);
-			var presets = file.collect({ |event| event[4] });
+			var fileOn = file.reject({ |event| event[2] == \noteOff });
+
+			var times = fileOn.collect({ |event| event[1] });
+			var presets = fileOn.collect({ |event| event[4] / 100 });
+
+			// must calculate the last delta!
+			if(file.size == 1,{
+				var lastDelta = file.last[1] - file[file.size-2][1];
+
+				times[0] = lastDelta
+			},{
+				var lastDelta = file.last[1] - file[file.size-2][1];
+
+				times = times.differentiate.drop(1);
+
+				times = times.add(lastDelta);
+
+			});
 
 			cues.put(key.asSymbol,
 				(
@@ -71,7 +86,7 @@ DMXIS {
 				"no file loaded".throw;
 			});
 		},{
-			this.loadFromMIDI(key, path);
+			this.loadFromMIDI(uniqueKey, path);
 		});
 
 		if(vst.isNil.not,{
