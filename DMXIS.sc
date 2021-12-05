@@ -1,6 +1,6 @@
 DMXIS {
 
-	classvar <cues, <>vst;
+	classvar <cues, <loopKeys, <>vst;
 
 	*initClass {
 
@@ -8,12 +8,18 @@ DMXIS {
 
 			cues = IdentityDictionary();
 
+
+			// yes? No?
+			loopKeys = IdentityDictionary();
+
 			SynthDef(\dmxis,{
 				Env.asr().kr(2,\gate.kr(1));
 				Out.ar(
 					\outBus.kr(0),
 					VSTPlugin.ar(numOut: 1))
-			}).add
+			}).add;
+
+			// add audioReactive synths here?
 		}
 	}
 
@@ -37,7 +43,7 @@ DMXIS {
 		^preset
 	}
 
-	*loadFromMIDI { |key, path|
+	*loadFromMIDI { |key, path, loopKey|
 		var pathToMIDI = path.asString;
 
 		if(pathToMIDI.extension == "mid",{
@@ -61,15 +67,16 @@ DMXIS {
 				times = times.differentiate.drop(1);
 
 				times = times.add(lastDelta);
-
 			});
 
 			cues.put(key.asSymbol,
 				(
 					times: times,
-					presets: presets
+					presets: presets,
 				)
 			);
+
+			if(loopKey.notNil,{ cues[key.asSymbol].put(loopKey.asSymbol, true) });
 
 		},{
 			"bad path, must be a .mid file!".throw;
@@ -78,36 +85,65 @@ DMXIS {
 		^cues.at(key)
 	}
 
-	*makePat { |key, path = nil|
+	*makePat { |key, path = nil, loopKey|
 		var uniqueKey = key.asSymbol;
 
 		if(path.isNil,{
 			if(cues[uniqueKey].isNil,{
 				"no file loaded".throw;
 			});
+			loopKey = cues[uniqueKey].findKeyForValue(true);                      // this doesn't seem that strong, could improve!
 		},{
-			this.loadFromMIDI(uniqueKey, path);
+			this.loadFromMIDI(uniqueKey, path, loopKey);
 		});
 
-		if(vst.isNil.not,{
+		if(vst.notNil,{
 			var times = cues[uniqueKey]['times'];
 			var presets = cues[uniqueKey]['presets'];
 
-			var pattern = Pdef(uniqueKey,
-				Pbind(
-					\type,\vst_set,
-					\vst,vst,
-					\params,[ \Preset ],
-					\dur,Pseq( times, 1 ),
-					\Preset,Pseq( presets, 1 ),
-				)
-			);
-
-			cues[uniqueKey].put('pattern',pattern)
+			if(loopKey.notNil,{
+				var pattern = Pdef("%Loop".format(uniqueKey).asSymbol,
+					Pbind(
+						\type,\vst_set,
+						\vst,vst,
+						\params,[ \Preset ],
+						\dur,Pseq( times, inf),
+						\Preset,Pwhile({ cues[uniqueKey].at(loopKey.asSymbol) }, Pseq( presets, 1 )),
+					)
+				);
+				cues[uniqueKey].put('pattern',pattern);
+			},{
+				var pattern = Pdef(uniqueKey,
+					Pbind(
+						\type,\vst_set,
+						\vst,vst,
+						\params,[ \Preset ],
+						\dur,Pseq( times, 1 ),
+						\Preset,Pseq( presets, 1 ),
+					)
+				);
+				cues[uniqueKey].put('pattern',pattern)
+			});
 		},{
 			"DMXIS-VST not running".throw;
 		});
 
 		^cues[uniqueKey]['pattern']
 	}
+
+	*makeReactive { |type = \amp, in,  func|      // need to make an accessible dictionary with synth types/keys
+
+		this.playSynth(type,in);
+		this.loadOSCFunc(func);
+	}
+
+
+
+
+
+
+
+
+
+
 }
