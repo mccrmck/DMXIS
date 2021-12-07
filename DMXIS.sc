@@ -131,7 +131,7 @@ DMXIS {
 		^cues[uniqueKey]['pattern']
 	}
 
-	*makeReactive { |type = \amp, in,  func|      // need to make an accessible dictionary with synth types/keys
+	*makeReactive { |type = \amp, in, func|      // need to make an accessible dictionary with synth types/keys
 
 		this.playSynth(type,in);
 		this.loadOSCFunc(func);
@@ -141,9 +141,12 @@ DMXIS {
 
 
 
-
-
-
-
-
 }
+
+
+
+
+
+
+
+
