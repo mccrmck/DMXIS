@@ -10,7 +10,7 @@ DMXIS {
 
 
 			// yes? No?
-			loopKeys = IdentityDictionary();
+			// loopKeys = IdentityDictionary();
 
 			SynthDef(\dmxis,{
 				Env.asr().kr(2,\gate.kr(1));
