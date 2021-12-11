@@ -1,16 +1,13 @@
 DMXIS {
 
-	classvar <cues, <loopKeys, <>vst;
+	classvar <cues, <reactDict, <>vst;
 
 	*initClass {
 
 		StartUp.add{
 
 			cues = IdentityDictionary();
-
-
-			// yes? No?
-			// loopKeys = IdentityDictionary();
+			reactDict = IdentityDictionary();
 
 			SynthDef(\dmxis,{
 				Env.asr().kr(2,\gate.kr(1));
@@ -19,7 +16,14 @@ DMXIS {
 					VSTPlugin.ar(numOut: 1))
 			}).add;
 
-			// add audioReactive synths here?
+			SynthDef(\dmxisAmpReactOneChan,{                 // eventually populate a dictionary of synths that can send arrays of args, not just amp
+				var sig = SoundIn.ar(\inBus.kr(0));
+				var amp = Amplitude.kr(sig);
+
+				amp = Lag3.kr(amp,\lagTime.kr(0.1));    // consider Lag3UD.kr
+				SendReply.kr(Impulse.kr(\trigRate.kr(8)),'/setLightOneChan',[amp]);
+
+			}).add;
 		}
 	}
 
@@ -33,7 +37,7 @@ DMXIS {
 	}
 
 	*free {
-		this.vst.synth.free;
+		vst.synth.free;
 	}
 
 	*setPreset { |preset|
@@ -131,22 +135,56 @@ DMXIS {
 		^cues[uniqueKey]['pattern']
 	}
 
-	*makeReactive { |type = \amp, in, func|      // need to make an accessible dictionary with synth types/keys
+	*react { |uniqueKey, in, param|           // eventually add a type arg that allows for choosing different synths -
+		var pattern = this.makeReactPat(uniqueKey,in);
+		var oscFunc = this.makeReactOSCFunc(param);
 
-		this.playSynth(type,in);
-		this.loadOSCFunc(func);
+		reactDict.put(uniqueKey.asSymbol,() );
+		reactDict[uniqueKey.asSymbol]
+		.put('pattern',pattern)
+		.put('oscFunc',oscFunc);
+
+		^pattern;
 	}
 
+	*makeReactPat { |key, in|
 
+		var pat = Pdef(key.asSymbol,
+			Pmono(\dmxisAmpReactOneChan,
+				\dur,1,
+				\inBus,in,
+				\lagTime,0.5,
+				\trigRate,8,
+			)
+		);
+		^pat
+	}
 
+	*makeReactOSCFunc { |param|
+		var func = 	OSCFunc({ |msg, time, addr, recvPort|
+			var val = msg[3];
 
+			// val.postln;
+
+			DMXIS.vst.set(param.asSymbol,val);
+
+		},'/setLightOneChan');
+		^func
+	}
+
+	*cleanUpReact { |uniqueKey, param|
+
+		var pat = Pdef("%CleanUp".format(uniqueKey).asSymbol,
+			Prout({
+				reactDict[uniqueKey]['pattern'].stop;
+				// vst.set(param.asSymbol,0); //turn down the fader we were affecting!
+				reactDict[uniqueKey]['oscFunc'].clear;
+				reactDict[uniqueKey]['pattern'].clear;
+				reactDict[uniqueKey] = nil;
+			})
+		);
+		^pat
+	}
 
 }
-
-
-
-
-
-
-
 
