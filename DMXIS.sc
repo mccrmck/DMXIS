@@ -10,7 +10,6 @@ DMXIS {
 			reactDict = IdentityDictionary();
 
 			SynthDef(\dmxis,{
-				Env.asr().kr(2,\gate.kr(1));
 				Out.ar(
 					\outBus.kr(0),
 					VSTPlugin.ar(numOut: 1))
