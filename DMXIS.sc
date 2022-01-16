@@ -15,7 +15,7 @@ DMXIS {
 					VSTPlugin.ar(numOut: 1))
 			}).add;
 
-			SynthDef(\dmxisAmpReactOneChan,{                 // eventually populate a dictionary of synths that can send arrays of args, not just amp
+			SynthDef(\dmxisAmpReactOneChan,{                 // eventually create a dictionary of synths that can send arrays of args, not just amp
 				var sig = SoundIn.ar(\inBus.kr(0));
 				var amp = Amplitude.kr(sig);
 
