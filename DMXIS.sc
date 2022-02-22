@@ -1,12 +1,13 @@
 DMXIS {
 
-	classvar <cues, <>vst;
+	classvar <cues, <loopCues, <>vst;
 
 	*initClass {
 
 		StartUp.add{
 
 			cues = IdentityDictionary();
+			loopCues = IdentityDictionary();
 
 			SynthDef(\dmxis,{
 				OffsetOut.ar(
@@ -40,7 +41,7 @@ DMXIS {
 		^vst
 	}
 
-	*loadFromMIDI { |key, path, loopKey|
+	*loadFromMIDI { |key, path, loop = false|
 		var pathToMIDI = path.asString;
 
 		if(pathToMIDI.extension == "mid",{
@@ -80,7 +81,7 @@ DMXIS {
 				)
 			);
 
-			if(loopKey.notNil,{ cues[key.asSymbol].put(loopKey.asSymbol, true) });
+			if(loop,{ loopCues.put(key.asSymbol, true) });
 
 		},{
 			"bad path, must be a .mid file!".throw;
@@ -89,116 +90,69 @@ DMXIS {
 		^cues.at(key)
 	}
 
-	*makePat { |key, path = nil, loopKey|
+	*makePat { |key, path = nil, loop = false|
 		var uniqueKey = key.asSymbol;
 
 		if(path.isNil,{
 			if(cues[uniqueKey].isNil,{
 				"no file loaded".throw;
 			});
-			loopKey = cues[uniqueKey].findKeyForValue(true);                      // this doesn't seem that strong, could improve!
+			loop = loopCues[uniqueKey];                      // this doesn't seem that strong, could improve!
 		},{
-			this.loadFromMIDI(uniqueKey, path, loopKey);
+			this.loadFromMIDI(uniqueKey, path, loop);
 		});
 
 		if(vst.notNil,{
 			var cue = cues[uniqueKey];
 
-			if(loopKey.notNil,{
-				var pattern = Pwhile({ cues[uniqueKey].at(loopKey.asSymbol) },
-					Ppar(
+			var notePats = cue['noteData'].indices.collect({ |num|
+				var times = cue['noteData'][num]['nTimes'];
+				var chans = cue['noteData'][num]['nChans'];
+				var vals  = cue['noteData'][num]['nVals'];
 
-						cue['noteData'].indices.collect({ |num|
-							var times = cue['noteData'][num]['nTimes'];
-							var chans = cue['noteData'][num]['nChans'];
-							var vals  = cue['noteData'][num]['nVals'];
+				Pseq([
 
-							Pseq([
+					Pbind(
+						\dur, Pseq([ times[0] ]),
+						\note, Rest()
+					),
+					Pbind(
+						\type,Pseq([\vst_midi,\rest],inf),
+						\vst,vst,
+						\dur,Pseq( times[1..] ),   // times
+						\legato, 0.99,
+						\midicmd, \noteOn,        // cmds
+						\chan,Pseq( chans ),      // chans
+						\midinote, num,           // nums
+						\amp, Pseq( vals / 127 ), // vals
+					)
+				])
+			});
 
-								Pbind(
-									\dur, Pseq([ times[0] ]),
-									\note, Rest()
-								),
-								Pbind(
-									\type,Pseq([\vst_midi,\rest],inf),
-									\vst,vst,
-									\dur,Pseq( times[1..] ),   // times
-									\legato, 0.99,
-									\midicmd, \noteOn,        // cmds
-									\chan,Pseq( chans ),      // chans
+			var ccPat = Pseq([
+				Pbind(
+					\dur, Pseq([ cue['cTimes'][0] ]),
+					\note, Rest()
+				),
+				Pbind(
+					\type,\vst_midi,
+					\vst,vst,
+					\dur,Pseq( cue['cTimes'][1..] ), // times
+					\midicmd, \control,              // cmds
+					\chan,Pseq( cue['cChans'] ),     // chans
+					\ctlNum, Pseq( cue['cNums'] ),   // nums
+					\control, Pseq( cue['cVals'] ),  // vals
+				)
+			]);
 
-									\midinote, num,  // nums
-									\amp, Pseq( vals / 127 ), // vals
-								)
-							])
-						})
-
-						++
-
-						Pseq([
-							Pbind(
-								\dur, Pseq([ cue['cTimes'][0] ]),
-								\note, Rest()
-							),
-							Pbind(
-								\type,\vst_midi,
-								\vst,vst,
-								\dur,Pseq( cue['cTimes'][1..] ), // times
-								\midicmd, \control,  // cmds
-								\chan,Pseq( cue['cChans'] ),     // chans
-								\ctlNum, Pseq( cue['cNums'] ),  // nums
-								\control, Pseq( cue['cVals'] ), // vals
-							)
-						])
-					);
+			if(loop,{
+				var pattern = Pwhile({ loopCues.at(uniqueKey.asSymbol) },
+					Ppar( notePats ++ ccPat );
 				);
 
 				cue.put('pattern',pattern)
 			},{
-				var pattern = Ppar(
-
-					cue['noteData'].indices.collect({ |num|
-						var times = cue['noteData'][num]['nTimes'];
-						var chans = cue['noteData'][num]['nChans'];
-						var vals  = cue['noteData'][num]['nVals'];
-
-						Pseq([
-							/*Pbind(
-							\dur, Pseq([ times[0] ]),
-							\note, Rest()
-							),*/
-							Pbind(
-								\type,Pseq([\vst_midi,\rest],inf),
-								\vst,vst,
-								\dur,Pseq( times[1..] ),   // times
-								\legato, 0.99,
-								\midicmd, \noteOn,        // cmds
-								\chan,Pseq( chans ),      // chans
-
-								\midinote, num,  // nums
-								\amp, Pseq( vals / 127 ), // vals
-							)
-						])
-					})
-
-					++
-
-					Pseq([
-						Pbind(
-							\dur, Pseq([ cue['cTimes'][0] ]),
-							\note, Rest()
-						),
-						Pbind(
-							\type,\vst_midi,
-							\vst,vst,
-							\dur,Pseq( cue['cTimes'][1..] ), // times
-							\midicmd, \control,  // cmds
-							\chan,Pseq( cue['cChans'] ),     // chans
-							\ctlNum, Pseq( cue['cNums'] ),  // nums
-							\control, Pseq( cue['cVals'] ), // vals
-						)
-					])
-				);
+				var pattern = Ppar( notePats ++ ccPat );
 
 				cue.put('pattern',pattern)
 			});
