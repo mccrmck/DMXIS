@@ -145,17 +145,13 @@ DMXIS {
 				)
 			]);
 
+			var pattern = Ppar( notePats ++ ccPat );
+
 			if(loop,{
-				var pattern = Pwhile({ loopCues.at(uniqueKey.asSymbol) },
-					Ppar( notePats ++ ccPat );
-				);
-
-				cue.put('pattern',pattern)
-			},{
-				var pattern = Ppar( notePats ++ ccPat );
-
-				cue.put('pattern',pattern)
+				pattern = Pwhile({ loopCues.at(uniqueKey.asSymbol) }, pattern )
 			});
+
+			cue.put('pattern',pattern)
 		},{
 			"DMXIS-VST not running, lights not loaded".postln;
 		});
