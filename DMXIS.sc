@@ -97,7 +97,7 @@ DMXIS {
 			if(cues[uniqueKey].isNil,{
 				"no file loaded".throw;
 			});
-			loop = loopCues[uniqueKey];                      // this doesn't seem that strong, could improve!
+			loop = loopCues[uniqueKey];
 		},{
 			this.loadFromMIDI(uniqueKey, path, loop);
 		});
@@ -117,9 +117,9 @@ DMXIS {
 						\note, Rest()
 					),
 					Pbind(
-						\type,Pseq([\vst_midi,\rest],inf),
+						\type,Pseq([\vst_midi,\rest],inf), // manage with a Pfunc? load cmds, if(Pkey(\cmd) == noteOn, {type = \vst_midi},{type = \rest})
 						\vst,vst,
-						\dur,Pseq( times[1..] ),   // times
+						\dur,Pseq( times[1..] ),  // times
 						\legato, 0.99,
 						\midicmd, \noteOn,        // cmds
 						\chan,Pseq( chans ),      // chans
@@ -147,9 +147,7 @@ DMXIS {
 
 			var pattern = Ppar( notePats ++ ccPat );
 
-			if(loop,{
-				pattern = Pwhile({ loopCues.at(uniqueKey.asSymbol) }, pattern )
-			});
+			if(loop,{ pattern = Pwhile({ loopCues.at(uniqueKey.asSymbol) }, pattern ) });
 
 			cue.put('pattern',pattern)
 		},{
