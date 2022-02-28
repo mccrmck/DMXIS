@@ -17,7 +17,6 @@ DMXIS {
 
 			// make a react synth?
 			// make a random algo synth??
-
 		}
 	}
 
@@ -59,7 +58,7 @@ DMXIS {
 				if( num.size > 0,{
 					var times = num.collect({ |event| event[1] }).differentiate.add(0.0);
 					var chans = num.collect({ |event| event[3] });
-					var vals  = num.collect({ |event| event[5] });
+					var vals  = num.collect({ |event| event[5] ? 0 });
 
 					noteData.put(i,
 						(
@@ -75,9 +74,9 @@ DMXIS {
 				(
 					noteData: noteData,
 					cTimes: control.collect({ |event| event[1] }).differentiate.add(0.0),
-					cChans: control.collect({ |event| event[3] }),
-					cNums:  control.collect({ |event| event[4] }),
-					cVals:  control.collect({ |event| event[5] }),
+					cChans: control.collect({ |event| event[3] }).add(0.0),
+					cNums:  control.collect({ |event| event[4] }).add(0.0),
+					cVals:  control.collect({ |event| event[5] }).add(0.0),
 				)
 			);
 
@@ -111,7 +110,6 @@ DMXIS {
 				var vals  = cue['noteData'][num]['nVals'];
 
 				Pseq([
-
 					Pbind(
 						\dur, Pseq([ times[0] ]),
 						\note, Rest()
@@ -120,7 +118,7 @@ DMXIS {
 						\type,Pseq([\vst_midi,\rest],inf), // manage with a Pfunc? load cmds, if(Pkey(\cmd) == noteOn, {type = \vst_midi},{type = \rest})
 						\vst,vst,
 						\dur,Pseq( times[1..] ),  // times
-						\legato, 0.99,
+						\legato, 0.999,
 						\midicmd, \noteOn,        // cmds
 						\chan,Pseq( chans ),      // chans
 						\midinote, num,           // nums
@@ -129,21 +127,29 @@ DMXIS {
 				])
 			});
 
-			var ccPat = Pseq([
+			var ccPat = if( cue['cTimes'].size > 1,{
+
+				Pseq([
+					Pbind(
+						\dur, Pseq([ cue['cTimes'][0] ]),
+						\note, Rest()
+					),
+					Pbind(
+						\type,\vst_midi,
+						\vst,vst,
+						\dur,Pseq( cue['cTimes'][1..] ), // times
+						\midicmd, \control,              // cmds
+						\chan,Pseq( cue['cChans'] ),     // chans
+						\ctlNum, Pseq( cue['cNums'] ),   // nums
+						\control, Pseq( cue['cVals'] ),  // vals
+					)
+				]);
+			},{
 				Pbind(
 					\dur, Pseq([ cue['cTimes'][0] ]),
 					\note, Rest()
-				),
-				Pbind(
-					\type,\vst_midi,
-					\vst,vst,
-					\dur,Pseq( cue['cTimes'][1..] ), // times
-					\midicmd, \control,              // cmds
-					\chan,Pseq( cue['cChans'] ),     // chans
-					\ctlNum, Pseq( cue['cNums'] ),   // nums
-					\control, Pseq( cue['cVals'] ),  // vals
 				)
-			]);
+			});
 
 			var pattern = Ppar( notePats ++ ccPat );
 
@@ -155,5 +161,21 @@ DMXIS {
 		});
 
 		^cues[uniqueKey]['pattern']
+	}
+
+	*makePresetPat { |uniqueKey, delta, preset |
+		var key = (uniqueKey ++ "Pset").asSymbol;
+
+		var pattern = Pbind(
+			\type,\vst_set,
+			\vst,vst,
+			\params,[ \Preset ],
+			\dur,Pseq( delta.asArray ),
+			\Preset,Pseq( preset.asArray / 100 ),
+		);
+
+		cues.put(key, pattern);
+
+		^cues[key]
 	}
 }
