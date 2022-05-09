@@ -25,7 +25,7 @@ DMXIS {
 	}
 
 	init {
-		vst = VSTPluginController( Synth(\dmxis) ).open("DMXIS-Inst.vst");
+		vst = VSTPluginController( Synth(\dmxis) ).open("DMXIS-Inst.vst");            // add set preset to the action function?
 		^vst;
 	}
 
